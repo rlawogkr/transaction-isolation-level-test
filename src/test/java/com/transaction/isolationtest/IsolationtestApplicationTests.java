@@ -69,20 +69,22 @@ class IsolationtestApplicationTests {
         Thread threadA = new Thread(() -> {
             transactionService.testRepeatableRead(accountId);
             try {
-                Thread.sleep(1000); // 첫 번째 조회 후 대기
+                Thread.sleep(1000); // 첫 번째 조회 후 대기, threadA는 아직 커밋되지 않음
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            transactionService.testRepeatableRead(accountId);
         });
 
         Thread threadB = new Thread(() -> {
             try {
-                Thread.sleep(500); // 트랜잭션 A의 첫 조회가 끝난 후 실행되도록 대기
+                Thread.sleep(500); // threadA가 첫 조회를 마친 후 실행
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }
-            transactionService.testReadCommitted(accountId);
+            // threadB가 값을 읽음, threadA가 커밋되기 전의 값이어야 함
+            Account account = accountRepository.findById(accountId).orElseThrow();
+            System.out.println("REPEATABLE READ - threadB balance: " + account.getBalance());
+            assertEquals(2000, account.getBalance()); // 예상: 변경되지 않은 초기 값인 2000
         });
 
         threadA.start();
@@ -93,7 +95,7 @@ class IsolationtestApplicationTests {
 
         // 트랜잭션 수행 후 상태를 확인
         Account account = accountRepository.findById(accountId).orElseThrow();
-        assertEquals(2300, account.getBalance());
+        assertEquals(2100, account.getBalance()); // 예상: threadA의 업데이트만 반영되어 2000 + 100 = 2100
     }
 
     @Test
